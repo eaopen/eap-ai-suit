@@ -14,6 +14,60 @@
 - **评估与反馈**：离线评测、在线指标、回放与对比
 - **支撑组件**：特征缓存、提示模板管理、可观测（Tracing/Logging/Metrics)
 
+## 2.1 二级路由架构设计
+
+企业级智能路由采用二级路由实现从资源发现到模型执行的全链路优化：
+
+- 一级路由（资源/工具路由）：在工具/资源层进行选择，例如通过 MCP 调用本地“企业微信记录”连接器，或改为云端 API。
+- 二级路由（模型/算力路由）：在具体算力和模型层面进行调度，例如选择本地 GPU、边缘 NPU，或云端推理服务。
+
+路由流程
+
+1) 请求解析 → 识别任务类型、安全等级、资源需求
+2) 一级路由 → 工具链与数据源选择（本地 MCP / 云 API / 混合）
+3) 二级路由 → 模型与算力选择（本地/云、具体模型）
+4) 执行与监控 → 全链路追踪、反馈回传、异常处理
+
+术语与边界
+
+- 本地客户端路由：发生在终端设备内部的轻量智能路由，支持离线策略与边缘推理。
+- 工具链路由：针对 MCP/插件等工具调用的路由策略，需合规优先与数据驻留优先。
+- 混合路由：一级在本地、二级在云端或相反，需满足数据合规前提。
+
+## 2.2 本地客户端智能路由
+
+组件架构
+
+- 本地路由引擎：缓存策略、离线可用、轻量评分与降级
+- 资源感知：CPU/GPU/NPU/内存/温度与电源模式监控
+- 安全与隐私控制：数据驻留、脱敏、最小化数据共享
+- 云端协作：策略同步、匿名化指标上报、云溢出通道
+
+工作模式
+
+- 完全离线：基于本地缓存策略决策，适用于 P0/P1 高敏数据
+- 混合模式：本地优先，必要时二级路由到云端
+- 云端辅助：云端提供新策略/新模型可用性与健康状态
+
+## 2.3 MCP 获取企业微信记录场景
+
+业务说明
+当助手需要访问企业微信聊天记录进行分析时，涉及高敏信息，需优先保障合规与数据驻留。
+
+端到端流程
+
+1) 用户请求解析 → 识别需要微信数据
+2) 一级路由（资源层）→ 选择本地 MCP 工具（企业微信连接器），数据不出设备
+3) 数据获取与脱敏 → 本地完成 PII/敏感字段脱敏
+4) 二级路由（模型层）→ 在本地选择合规模型分析（本地 GPU/NPU 或轻量 CPU 模型）
+5) 结果处置 → 输出仅含必要洞察，确保隐私合规
+
+安全与回退
+
+- 数据驻留：强制本地处理，禁云；内存加密、及时清理
+- 访问控制：角色/会话授权、完整审计
+- 回退：工具不可用则提示用户提供摘要；本地算力不足降级到轻量模型/分片处理；若仍不满足合规则拒绝执行
+
 ## 3. 路由策略与关键指标
 
 - **指标**：时延、成功率、成本、质量评分（自动或人评）、风控标签
@@ -44,33 +98,120 @@ policy:
 ## 5. 路由伪代码（带函数级注释）
 
 ```python
-def route_request(ctx, candidates, policy):
+def emit(event_name: str, payload: dict):
     """
-    路由主函数：根据策略在候选模型中选择最优目标，并处理重试与降级。
-  
+    事件上报函数：用于将路由与执行阶段的关键事件发送到事件总线。
     参数:
-      - ctx: 请求上下文（业务重要度、地域、SLA、超时等）
-      - candidates: 候选推理端点（带实时指标/健康状况）
-      - policy: 路由策略（成本/时延/质量权重、阈值、重试配置）
-  
+      - event_name: 事件名（如 'tool.route.started', 'route.subdecided', 'route.decided'）
+      - payload: 事件携带的上下文信息
     返回:
-      - best_target: 选定的推理端点信息
+      - None
     """
-    # 预过滤（健康、地域、合规模型清单）
-    filtered = [c for c in candidates if healthy(c) and region_ok(ctx, c)]
-  
-    # 评分（可接入多臂赌博/贝叶斯优化/质量回传）
-    scored = [(c, score(c, policy)) for c in filtered]
-    best = max(scored, key=lambda x: x[1])[0]
-  
-    # 重试/降级
-    for attempt in range(policy.retry.max_attempts):
-        resp = call(best, ctx)
+    pass
+
+
+def route_resource(ctx, tools, policy):
+    """
+    一级路由（资源/工具路由）：根据任务与合规需求选择工具链与数据源。
+    参数:
+      - ctx: 请求上下文（task_type、security_level、need_wechat 等）
+      - tools: 可用工具列表（本地 MCP 工具、云端 API 工具等，含健康/合规标记）
+      - policy: 策略（合规优先级、数据驻留要求、工具白名单、重试配置）
+    返回:
+      - selected_tool: 被选中的工具（优先本地/合规），或 None 表示无需工具
+    """
+    candidates = [t for t in tools if t.healthy and t.allowed_for(ctx.security_level)]
+    # 合规优先：P0/P1 强制本地驻留工具，例如本地 MCP 企业微信
+    if ctx.need_wechat:
+        local_wechat_tools = [t for t in candidates if t.name == "mcp_wechat_local"]
+        if ctx.security_level in ("P0", "P1") and local_wechat_tools:
+            return local_wechat_tools[0]
+        # 不满足合规或本地工具不可用，触发回退与告警
+        if ctx.security_level in ("P0", "P1"):
+            raise RuntimeError("合规限制：P0/P1 场景禁止云端微信数据访问")
+    # 其他工具按健康度/成本/延迟简单加权选择
+    if candidates:
+        return max(candidates, key=lambda t: t.score(policy))
+    return None
+
+
+def route_model(ctx, candidates, policy, scope=None):
+    """
+    二级路由（模型/算力路由）：在允许的算力与模型范围内进行精确选择与重试/降级。
+    参数:
+      - ctx: 请求上下文（SLA、时延预算、模型提示）
+      - candidates: 可用推理端点/模型（带实时指标/健康状况/成本）
+      - policy: 路由策略（权重、阈值、重试与降级配置）
+      - scope: 可选的资源范围约束（如要求 L0/L1、本地-only）
+    返回:
+      - best_target: 选定的推理端点
+    """
+    # 预过滤：健康、地域、合规与层级（如 P0 禁止 L2 云）
+    def allowed_layer(c):
+        if ctx.security_level == "P0":
+            return c.layer in ("L0", "L1")
+        return True
+
+    filtered = [c for c in candidates if c.healthy and allowed_layer(c)]
+    if scope == "local_only":
+        filtered = [c for c in filtered if c.layer in ("L0", "L1")]
+
+    if not filtered:
+        raise RuntimeError("无可用候选模型（已被合规或健康检查过滤）")
+
+    # 评分（可接入多臂赌博/质量回传），示例：安全>匹配>SLA>成本
+    def score(c):
+        s = c.security_fit(ctx) * policy.weights["security"]
+        f = c.capability_fit(ctx) * policy.weights["fit"]
+        l = c.latency_fit(ctx) * policy.weights["latency"]
+        k = c.cost_fit(ctx)    * policy.weights["cost"]
+        return s + f + l + k
+
+    scored = sorted(filtered, key=lambda x: score(x), reverse=True)
+
+    # 重试与降级
+    attempts = 0
+    tried = set()
+    while attempts <= policy.retry.max_attempts and scored:
+        target = next(c for c in scored if c.id not in tried)
+        resp = call_model(target, ctx)
         if ok(resp, policy):
-            return best
-        best = next_best(scored, tried=best)
-  
-    return fallback_endpoint(ctx)
+            return target
+        tried.add(target.id)
+        attempts += 1
+
+    # 降级策略：模型降阶/上下文裁剪/切换层级
+    fallback = fallback_endpoint(ctx)
+    return fallback
+
+
+def route_request(ctx, tools, models, policy):
+    """
+    路由主函数：执行二级路由（先资源/工具，再模型/算力），并处理埋点与降级。
+    参数:
+      - ctx: 请求上下文（task_type、security_level、need_wechat、SLA 等）
+      - tools: 工具列表（含 MCP 等）
+      - models: 模型/算力候选列表（L0/L1/L2）
+      - policy: 路由策略
+    返回:
+      - decision: { tool, model } 最终决策
+    """
+    # 一级：资源/工具路由
+    emit("tool.route.started", {"ctx": ctx.to_dict()})
+    tool = route_resource(ctx, tools, policy)
+    emit("route.subdecided", {"tool": getattr(tool, "name", None)})
+
+    # 工具执行（如需）：例如本地 MCP 获取企业微信记录并在本地脱敏
+    if tool:
+        data = call_tool(tool, ctx)
+        ctx.attach_tool_result(data)
+
+    # 二级：模型/算力路由（若工具涉及高敏数据则限制为本地范围）
+    scope = "local_only" if (ctx.need_wechat and ctx.security_level in ("P0", "P1")) else None
+    model = route_model(ctx, models, policy, scope=scope)
+
+    emit("route.decided", {"tool": getattr(tool, "name", None), "model": model.id})
+    return {"tool": tool, "model": model}
 ```
 
 ## 6. 可观测与评测
@@ -207,7 +348,9 @@ post /inference:
 
 支持的事件类型：
 
-- `route.decided`：路由决策完成
+- `tool.route.started`：开始进行一级工具/资源路由（便于对接自动化与审计）
+- `route.subdecided`：一级路由（资源/工具）决策完成
+- `route.decided`：二级路由（模型/算力）决策完成
 - `node.offline`：节点离线
 - `policy.updated`：策略更新
 - `budget.exceeded`：预算超限
