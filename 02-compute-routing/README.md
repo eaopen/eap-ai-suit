@@ -270,7 +270,6 @@ core = w_sec * S + w_fit * F + w_sla * L + w_cost * C
 - L：预计延迟（越低越高分）
 - C：单位 token 成本与电费（越低越高分）
 
-
 ## 12. 企业级策略配置
 
 ```yaml
@@ -318,7 +317,7 @@ queues:
   "node_id": "pc-amy",
   "layer": "L0",
   "gpus": [{"name":"RTX 4060","vram_gb":8,"free_gb":5}],
-  "models": ["llama3-8b","clip_vision"],
+  "models": ["qwen3-8b","clip_vision"],
   "drivers": {"cuda":"12.4"},
   "thermal": 71,
   "price_factor": 0.4,
@@ -334,7 +333,7 @@ post /inference:
   body:
     task_type: ["chat","rag","embed","media"]
     security_level: ["P0","P1","P2"]
-    model_hint: "llama3.1-70b-instruct"
+    model_hint: "qwen3-72b"
     sla:
       max_latency_ms: 1200
       min_tokens_per_s: 30
@@ -374,3 +373,135 @@ post /inference:
 - **故障恢复测试**：节点失联 30s 内迁移
 - **动态配置测试**：策略热更新立即生效
 - **性能基准测试**：满足 SLA 要求的响应时间和吞吐量
+
+## 18. 典型应用案例
+
+### 18.1 案例 A：传统企业本地化部署方案
+
+compute_layers:
+  L0: # 终端设备
+    - type: "workstation"
+      gpu: "RTX 4060/4070"
+      models: ["gpt-oss-20b", "qwen3-4b"]
+      role: "轻量推理、预处理"
+
+  L1: # 本地服务器
+    primary_inference:
+      - gpu: "H20"
+        models: ["gpt-oss-120b", "qwen3-72b", "deepseek-r1-67b"]
+        role: "主力推理服务"
+    cost_effective:
+      - gpu: "A30"
+        models: ["gpt-oss-20b", "qwen3-32b", "glm-4.5-9b"]
+        role: "批量处理、轻量任务"
+
+# 案例B：IT中小企业混合部署方案
+
+compute_layers:
+  L0: # 终端设备（MacBook Pro）
+    - type: "macbook_pro_m3"
+      memory: "36GB/128GB"
+      models: ["gpt-oss-20b", "qwen3-4b"]
+      role: "个人助手、代码补全、轻量推理"
+
+  L1: # 本地服务器（Mac Studio）
+    - type: "mac_studio_m3_ultra"
+      memory: "512GB"
+      models: ["gpt-oss-120b", "qwen3-72b", "deepseek-r1-67b"]
+      role: "团队共享推理、重型任务"
+
+  L2: # 云端服务（选择性使用）
+    - providers: ["openai", "anthropic", "azure"]
+      models: ["gpt-4o", "claude-4-sonnet", "gpt-oss-120b"]
+      role: "尖峰负载、最新模型"
+
+routing_policy:
+  data_classification:
+    P0: "local_only"  # 客户核心代码
+    P1: "local_preferred"  # 内部文档
+    P2: "cloud_allowed"  # 通用任务
+
+  cost_optimization:
+    daily_hours: "9-18 local_preferred"
+    off_hours: "cloud_spillover"
+    weekend: "local_only"
+
+```
+
+**智能路由策略**：
+```python
+def route_for_it_company(ctx, policy):
+    """
+    IT中小企业智能路由策略：平衡安全、性能和成本
+    参数:
+      - ctx: 请求上下文（包含数据分级、时间等信息）
+      - policy: 路由策略配置
+    返回:
+      - route_decision: 路由决策结果
+    """
+    # 数据分级判断
+    if ctx.contains_client_code or ctx.security_level == "P0":
+        # 客户代码强制本地处理
+        return route_local_only(ctx, prefer_mac_studio=True)
+  
+    # 工作时间优先本地，节省成本
+    if is_business_hours() and ctx.security_level == "P1":
+        local_capacity = check_local_capacity()
+        if local_capacity > 0.7:  # 本地资源充足
+            return route_local(ctx)
+        else:
+            return route_hybrid(ctx, local_ratio=0.6)
+  
+    # 非工作时间或P2数据可以云端处理
+    if ctx.security_level == "P2" or not is_business_hours():
+        return route_cloud_preferred(ctx, cost_limit=True)
+  
+    return route_local(ctx)  # 默认本地
+```
+
+**应用场景**：
+
+- 代码审查和重构建议（本地）
+- 技术文档生成（混合）
+- 客户需求分析（本地）
+- 市场调研和内容创作（云端）
+- 团队协作和项目管理（混合）
+
+**成本效益**：
+
+- 初期投资：25-35万（Mac Studio + 终端升级）
+- 月运营成本：5000-8000元（电费+云服务）
+- 灵活性：根据项目需求动态调整
+- 开发效率提升：30-50%
+
+### 18.3 案例对比总结
+
+| 维度               | 传统企业方案     | IT中小企业方案     |
+| ------------------ | ---------------- | ------------------ |
+| **安全等级** | P0严格本地化     | P0/P1/P2分级处理   |
+| **硬件投资** | 80-120万         | 25-35万            |
+| **运营成本** | 15-25万/年       | 6-10万/年          |
+| **灵活性**   | 低，稳定优先     | 高，敏捷优先       |
+| **技术门槛** | 中等，需专业运维 | 低，开发团队可维护 |
+| **扩展性**   | 硬件扩展         | 云端弹性扩展       |
+| **适用规模** | 大中型企业       | 中小型企业/工作室  |
+
+### 18.4 方案选择指导
+
+**选择传统企业方案的条件**：
+
+- 年营收超过10亿，有充足IT预算
+- 处理高度敏感数据（金融、医疗、军工等）
+- 有专业IT运维团队
+- 对数据出境有严格限制
+- 追求长期稳定性和可控性
+
+**选择IT中小企业方案的条件**：
+
+- 团队规模50-200人
+- 技术团队具备一定运维能力
+- 业务数据敏感度分级明确
+- 追求成本效益和部署灵活性
+- 可接受部分云服务依赖
+
+这两个典型案例展示了智能路由方案如何根据不同企业的安全需求、技术能力和成本预算进行灵活适配，实现从完全本地化到混合部署的全覆盖，为中型企业提供了简化而实用的AI算力解决方案。
