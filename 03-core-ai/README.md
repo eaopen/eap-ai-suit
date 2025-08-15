@@ -74,10 +74,10 @@
 
 ## 4. 推荐技术栈与版本
 
-- **RAG 平台**：Qdrant 1.7.3 + Unstructured（解析→索引→混检→重排）
-- **对话助手**：Dify 0.6.0（多知识库上下文问答、可视化配置）
-- **自动化平台**：n8n 1.42.0（跨系统自动化，ERP/CRM/OA 集成）
-- **接入与安全**：Kong 3.6.0（入口/限流/鉴权）；Keycloak 24.0.1（可选 SSO/权限）
+- **RAG 平台**：Ragflow/RagAnything/Qdrant + Unstructured（解析→索引→混检→重排）
+- **对话助手**：Dify（多知识库上下文问答、可视化配置）
+- **自动化平台**：n8n（跨系统自动化，ERP/CRM/OA 集成）
+- **接入与安全**：Kong（入口/限流/鉴权）；Keycloak（可选 SSO/权限）
 - **可观测性**：Prometheus + Grafana + OpenTelemetry；日志管理（Loki/ELK）
 
 ## 5. 快速实施步骤（4 周计划）
