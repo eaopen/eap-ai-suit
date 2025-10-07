@@ -14,6 +14,14 @@ https://www.nocobase.com/cn/blog/github-open-source-mcp-projects
 
 https://zhuanlan.zhihu.com/p/1896494880970231914
 
+- Dify - Using MCP Tools
+
+https://docs.dify.ai/en/guides/tools/mcp
+
+- Dify v1.6.0: Built-in Two-Way MCP Support
+
+https://dify.ai/blog/v1-6-0-built-in-two-way-mcp-support
+
 ## MCP Platform
 
 - [github-mcp-server](https://github.com/github/github-mcp-server)
@@ -60,6 +68,12 @@ An OAuth 2.1 Authorization Server that adds authentication to any MCP (Model Con
 
 https://github.com/atrawog/mcp-oauth-gateway
 
+- [dify-mcp-client](https://github.com/3dify-project/dify-mcp-client)
+
+MCP Client as an Agent Strategy Plugin. Support GUI operation via UI-TARS-SDK
+
+https://github.com/3dify-project/dify-mcp-client
+
 ## MCP Server
 
 ### mcp browser
@@ -78,11 +92,15 @@ https://github.com/microsoft/playwright-mcp
 
 ### mcp file
 
+- [mcp-filesystem-server](https://github.com/mark3labs/mcp-filesystem-server)
+
+Go server implementing Model Context Protocol (MCP) for filesystem operations.
+
+https://github.com/mark3labs/mcp-filesystem-server
+
 - [sample-mcp-server-s3](https://github.com/aws-samples/sample-mcp-server-s3)
 
 https://github.com/aws-samples/sample-mcp-server-s3
-
-
 
 ### mcp db(sql)
 
@@ -91,6 +109,12 @@ https://github.com/aws-samples/sample-mcp-server-s3
 Universal database MCP server connecting to MySQL, PostgreSQL, SQL Server, MariaDB.
 
 https://github.com/bytebase/dbhub/
+
+- [db-mcp-server](https://github.com/FreePeak/db-mcp-server)
+
+A powerful multi-database server implementing the Model Context Protocol (MCP) to provide AI assistants with structured access to databases.
+
+https://github.com/FreePeak/db-mcp-server
 
 - [mcp-server-mysql](https://github.com/benborla/mcp-server-mysql)
 
