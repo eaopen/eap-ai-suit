@@ -36,6 +36,14 @@ Model Context Protocol Servers
 
 https://github.com/modelcontextprotocol/servers
 
+* [MCP Server Boot Starters](https://docs.spring.io/spring-ai/reference/api/mcp/mcp-server-boot-starter-docs.html)
+
+The Spring AI MCP (Model Context Protocol) Server Boot Starter provides auto-configuration for setting up an MCP server in Spring Boot applications. 
+It enables seamless integration of MCP server capabilities with Spring Boot’s auto-configuration system.
+
+https://docs.spring.io/spring-ai/reference/api/mcp/mcp-overview.html
+https://docs.spring.io/spring-ai/reference/api/mcp/mcp-server-boot-starter-docs.html
+
 - [chatmcp](https://github.com/daodao97/chatmcp)
 
 ChatMCP is an AI chat client implementing the Model Context Protocol (MCP).
